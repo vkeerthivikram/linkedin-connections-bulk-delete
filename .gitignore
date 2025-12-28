@@ -4,3 +4,6 @@ _bmad-output/
 .claude/
 .github/
 .vscode/
+.idea/
+/_bmad/
+.kilocodemodes
