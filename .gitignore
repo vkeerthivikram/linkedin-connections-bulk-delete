@@ -1,0 +1,6 @@
+_bamd/
+_bmad-output/
+.agent/
+.claude/
+.github/
+.vscode/
