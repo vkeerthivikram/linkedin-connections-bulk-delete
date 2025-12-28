@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn Bulk Delete Connections</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 420px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #ffffff;
+      color: #333;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #0a66c2 0%, #004182 100%);
+      color: #ffffff;
+      padding: 24px 20px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 20px;
+    }
+
+    .info-box {
+      background: #f3f6f8;
+      border-left: 4px solid #0a66c2;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+
+    .info-box h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #0a66c2;
+    }
+
+    .info-box p {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .info-box ul {
+      margin-left: 20px;
+      margin-top: 8px;
+    }
+
+    .info-box li {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .info-box li::before {
+      content: "✓ ";
+      color: #0a66c2;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .feature-box {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .feature-box h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #0a66c2;
+    }
+
+    .feature-box p {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #666;
+      margin-bottom: 4px;
+    }
+
+    .feature-box p:last-child {
+      margin-bottom: 0;
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px 20px;
+      background: #0a66c2;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      text-align: center;
+      text-decoration: none;
+      margin-bottom: 12px;
+    }
+
+    .btn:hover {
+      background: #004182;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(10, 102, 194, 0.2);
+    }
+
+    .btn-secondary {
+      background: #ffffff;
+      color: #0a66c2;
+      border: 2px solid #0a66c2;
+    }
+
+    .btn-secondary:hover {
+      background: #f3f6f8;
+    }
+
+    .warning-box {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+
+    .warning-box h4 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #856404;
+    }
+
+    .warning-box p {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #666;
+      margin-bottom: 4px;
+    }
+
+    .footer {
+      padding: 16px 20px;
+      background: #f3f6f8;
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .footer a {
+      color: #0a66c2;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    .note {
+      font-size: 12px;
+      color: #999;
+      margin-top: 12px;
+      text-align: center;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>LinkedIn Bulk Delete Connections</h1>
+    <p>API-Based Connection Management</p>
+  </div>
+
+  <div class="content">
+    <div class="info-box">
+      <h3>🚀 New API-Based Architecture</h3>
+      <p>This extension has been completely rewritten to use a pure API-based approach.</p>
+      <ul>
+        <li>No more DOM manipulation or auto-scrolling</li>
+        <li>Fetches all connections directly from LinkedIn API</li>
+        <li>Displays connections in a custom overlay panel</li>
+        <li>Deletes connections via API calls with rate limiting</li>
+      </ul>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-box">
+        <h4>📥 Fetch Connections</h4>
+        <p>Click "Fetch Connections" to load all your LinkedIn connections via API</p>
+        <p>Supports pagination to fetch thousands of connections</p>
+      </div>
+
+      <div class="feature-box">
+        <h4>🔍 Search & Filter</h4>
+        <p>Search connections by name, company, or headline</p>
+        <p>Filter by "All Connections" or "Last 30 Days"</p>
+      </div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-box">
+        <h4>📊 Sort Options</h4>
+        <p>Sort by: Recently Added, Name (A-Z/Z-A), Connection Date</p>
+      </div>
+
+      <div class="feature-box">
+        <h4>✅ Select & Delete</h4>
+        <p>Select individual connections or use "Select All"</p>
+        <p>Delete with progress tracking and error handling</p>
+      </div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-box">
+        <h4>📥 Export Data</h4>
+        <p>Export connections to CSV or JSON format</p>
+        <p>Keep backup before deleting</p>
+      </div>
+
+      <div class="feature-box">
+        <h4>📥 Import Selection</h4>
+        <p>Import JSON file to bulk-select connections</p>
+        <p>Useful for re-importing saved selections</p>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <h4>⚠️ Important Notes</h4>
+      <p><strong>1. Navigate to Connections Page</strong></p>
+      <p>Go to your LinkedIn Connections page (mynetwork/invite-connect/connections)</p>
+      
+      <p><strong>2. Extension Activates Automatically</strong></p>
+      <p>The custom panel will appear when you're on the Connections page</p>
+      
+      <p><strong>3. No DOM Manipulation</strong></p>
+      <p>This version does NOT inject checkboxes into LinkedIn's UI</p>
+      <p>All operations happen in a separate overlay panel</p>
+      
+      <p><strong>4. Press Ctrl+Shift+D</strong></p>
+      <p>Toggle the panel visibility anytime</p>
+    </div>
+
+    <button class="btn" id="openConnections">Go to Connections Page</button>
+    <button class="btn btn-secondary" id="resetSettings">Reset Settings</button>
+  </div>
+
+  <div class="footer">
+    Version 2.0.0 - API-Based Architecture
+  </div>
+
+  <div class="note">
+    Press Ctrl+Shift+D to toggle the panel
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Open Connections page
+      document.getElementById('openConnections').addEventListener('click', () => {
+        chrome.tabs.create({ url: 'https://www.linkedin.com/mynetwork/invite-connect/connections/' });
+      });
+
+      // Reset settings
+      document.getElementById('resetSettings').addEventListener('click', () => {
+        if (confirm('Are you sure you want to reset all settings to defaults?')) {
+          chrome.runtime.sendMessage({ action: 'resetConfig' }, (response) => {
+            if (response && response.success) {
+              alert('Settings have been reset to defaults.');
+            }
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

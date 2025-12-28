@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "LinkedIn Bulk Delete Connections",
+  "version": "1.0.0",
+  "description": "Bulk delete LinkedIn connections with ease. Select multiple connections and remove them in batches with rate limiting and visual feedback.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://linkedin.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/mynetwork/invite-connect/connections/*",
+        "https://linkedin.com/mynetwork/invite-connect/connections/*"
+      ],
+      "js": [
+        "content/config.js",
+        "content/errorHandler.js",
+        "content/api.js",
+        "content/queue.js",
+        "content/ui.js",
+        "content/content.js"
+      ],
+      "css": [
+        "content/styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "LinkedIn Bulk Delete Connections"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
