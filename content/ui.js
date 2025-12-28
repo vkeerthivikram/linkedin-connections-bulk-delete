@@ -343,8 +343,8 @@ const UI = {
     this.elements.importFile?.addEventListener('change', (e) => this.importConnections(e.target.files[0]));
 
     // Pagination
-    this.elements.prevPageBtn?.addEventListener('click', () => this.goToPage(this.state.currentPage - 1));
-    this.elements.nextPageBtn?.addEventListener('click', () => this.goToPage(this.state.currentPage + 1));
+    this.elements.prevPageBtn?.addEventListener('click', () => this.fetchPreviousPage());
+    this.elements.nextPageBtn?.addEventListener('click', () => this.fetchNextPage());
 
     // Deletion controls
     this.elements.deleteBtn?.addEventListener('click', () => this.startDeletion());
@@ -378,8 +378,8 @@ const UI = {
     this.elements.fetchBtn.innerHTML = '<span class="lbtn-icon">⏳</span> Fetching...';
  
     try {
-      console.log('LinkedIn Bulk Delete [UI]: Calling fetchAllConnections...');
-      const connections = await window.LinkedInBulkDelete.fetchAllConnections();
+      console.log('LinkedIn Bulk Delete [UI]: Calling fetchFirstPage...');
+      const connections = await window.LinkedInBulkDelete.fetchFirstPage();
       console.log('LinkedIn Bulk Delete [UI]: Received connections:', {
         count: connections.length,
         isArray: Array.isArray(connections),
@@ -387,8 +387,8 @@ const UI = {
       });
       
       this.state.visibleConnections = connections;
-      console.log('LinkedIn Bulk Delete [UI]: Calling applyFilters...');
-      this.applyFilters();
+      console.log('LinkedIn Bulk Delete [UI]: Calling renderCurrentPage...');
+      this.renderCurrentPage();
       
       this.showNotification(`Successfully fetched ${connections.length} connections`, 'success');
     } catch (error) {
@@ -408,30 +408,36 @@ const UI = {
    * Apply filters and render connections
    */
   applyFilters() {
-    const connections = window.LinkedInBulkDelete?.state?.connections || [];
-    
-    // Filter connections
-    let filtered = connections.filter(connection => {
-      // Apply search filter
-      if (this.state.searchTerm) {
-        const term = this.state.searchTerm.toLowerCase();
+    const state = window.LinkedInBulkDelete?.state;
+    if (!state) {
+      console.warn('LinkedIn Bulk Delete [UI]: State not available for filtering');
+      return;
+    }
+
+    // Filter all connections from cache
+    let filtered = [];
+    state.pageCache.forEach((connections) => {
+      filtered = [...filtered, ...connections];
+    });
+
+    // Apply search filter
+    if (this.state.searchTerm) {
+      const term = this.state.searchTerm.toLowerCase();
+      filtered = filtered.filter(connection => {
         const matchesName = connection.fullName.toLowerCase().includes(term);
         const matchesHeadline = connection.headline.toLowerCase().includes(term);
-        
-        if (!matchesName && !matchesHeadline) {
-          return false;
-        }
-      }
+        return matchesName || matchesHeadline;
+      });
+    }
 
-      // Apply type filter
-      if (this.state.filterType === 'recent') {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Apply type filter
+    if (this.state.filterType === 'recent') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      filtered = filtered.filter(connection => {
         return connection.connectionDate && connection.connectionDate >= thirtyDaysAgo;
-      }
-      
-      return true;
-    });
+      });
+    }
 
     // Sort connections
     switch (this.state.sortType) {
@@ -458,33 +464,38 @@ const UI = {
     }
 
     this.state.displayedConnections = filtered;
-    this.state.currentPage = 0;
-    this.renderConnections();
+    
+    // Note: Filtering doesn't work well with pagination since we cache pages
+    // For now, we'll just show the current page from cache
+    // A full implementation would need to rebuild the cache with filtered results
+    console.warn('LinkedIn Bulk Delete [UI]: Filtering with pagination is limited. Showing current page from cache.');
+    this.renderCurrentPage();
   },
 
   /**
-   * Render connections list
+   * Render current page from cache
    */
-  renderConnections() {
-    const connections = this.state.displayedConnections;
-    const startIndex = this.state.currentPage * this.state.itemsPerPage;
-    const endIndex = startIndex + this.state.itemsPerPage;
-    const pageConnections = connections.slice(startIndex, endIndex);
-    const totalPages = Math.ceil(connections.length / this.state.itemsPerPage) || 1;
+  renderCurrentPage() {
+    const state = window.LinkedInBulkDelete?.state;
+    if (!state) {
+      console.warn('LinkedIn Bulk Delete [UI]: State not available');
+      return;
+    }
+
+    const currentPage = state.currentPage;
+    const pageConnections = state.pageCache.get(currentPage) || [];
+    const totalPages = state.totalPages || 1;
 
     // Update list info
-    this.elements.listInfo.textContent = `Showing ${pageConnections.length} of ${connections.length} connections`;
+    const totalConnections = state.connections.length;
+    const startRange = currentPage * state.connectionsPerPage + 1;
+    const endRange = Math.min((currentPage + 1) * state.connectionsPerPage, totalConnections);
+    this.elements.listInfo.textContent = totalConnections > 0
+      ? `Showing ${startRange}-${endRange} of ${totalConnections} connections`
+      : 'No connections loaded';
 
-    // Update pagination
-    if (connections.length > this.state.itemsPerPage) {
-      this.elements.pagination.style.display = 'flex';
-      this.elements.currentPageSpan.textContent = this.state.currentPage + 1;
-      this.elements.totalPagesSpan.textContent = totalPages;
-      this.elements.prevPageBtn.disabled = this.state.currentPage === 0;
-      this.elements.nextPageBtn.disabled = this.state.currentPage >= totalPages - 1;
-    } else {
-      this.elements.pagination.style.display = 'none';
-    }
+    // Update pagination controls
+    this.updatePaginationControls(currentPage, totalPages);
 
     // Clear list
     this.elements.connectionList.innerHTML = '';
@@ -498,7 +509,7 @@ const UI = {
 
     // Render connection items
     pageConnections.forEach(connection => {
-      const isSelected = window.LinkedInBulkDelete?.state?.selectedConnections?.has(connection.id) || false;
+      const isSelected = state.selectedConnections?.has(connection.id) || false;
       
       const item = document.createElement('div');
       item.className = `lbd-connection-item ${isSelected ? 'lbd-selected' : ''}`;
@@ -506,13 +517,13 @@ const UI = {
       
       item.innerHTML = `
         <div class="lbd-connection-checkbox">
-          <input type="checkbox" 
-                 id="lbd-checkbox-${connection.id}" 
-                 ${isSelected ? 'checked' : ''} 
+          <input type="checkbox"
+                 id="lbd-checkbox-${connection.id}"
+                 ${isSelected ? 'checked' : ''}
                  value="${connection.id}" />
         </div>
         <div class="lbd-connection-avatar">
-          ${connection.profilePicture 
+          ${connection.profilePicture
             ? `<img src="${connection.profilePicture}" alt="${connection.fullName}" />`
             : '<div class="lbd-avatar-placeholder">' + connection.fullName.charAt(0) + '</div>'
           }
@@ -520,14 +531,14 @@ const UI = {
         <div class="lbd-connection-info">
           <div class="lbd-connection-name">${connection.fullName}</div>
           <div class="lbd-connection-headline">${connection.headline}</div>
-          ${connection.connectionDate 
+          ${connection.connectionDate
             ? `<div class="lbd-connection-date">Connected: ${connection.connectionDate.toLocaleDateString()}</div>`
             : ''
           }
         </div>
         <div class="lbd-connection-link">
-          <a href="https://www.linkedin.com/in/${connection.publicIdentifier}" 
-             target="_blank" 
+          <a href="https://www.linkedin.com/in/${connection.publicIdentifier}"
+             target="_blank"
              title="View profile">↗</a>
         </div>
       `;
@@ -536,9 +547,9 @@ const UI = {
       const checkbox = item.querySelector('input[type="checkbox"]');
       checkbox.addEventListener('change', (e) => {
         if (e.target.checked) {
-          window.LinkedInBulkDelete?.state?.selectedConnections?.add(connection.id);
+          state.selectedConnections?.add(connection.id);
         } else {
-          window.LinkedInBulkDelete?.state?.selectedConnections?.delete(connection.id);
+          state.selectedConnections?.delete(connection.id);
         }
         this.updateSelectedCount();
       });
@@ -556,17 +567,106 @@ const UI = {
   },
 
   /**
-   * Go to specific page
+   * Update pagination controls
+   */
+  updatePaginationControls(currentPage, totalPages) {
+    const state = window.LinkedInBulkDelete?.state;
+    if (!state) return;
+
+    // Show pagination if we have connections
+    if (state.connections.length > state.connectionsPerPage || state.totalPages > 1) {
+      this.elements.pagination.style.display = 'flex';
+      this.elements.currentPageSpan.textContent = currentPage + 1;
+      
+      // Show total pages if known, otherwise show "?"
+      this.elements.totalPagesSpan.textContent = state.totalPages > 0 ? state.totalPages : '?';
+      
+      // Disable previous button on first page
+      this.elements.prevPageBtn.disabled = currentPage === 0;
+      
+      // Disable next button on last page or if we don't know if there are more
+      this.elements.nextPageBtn.disabled = !state.hasMoreConnections && currentPage >= state.totalPages - 1;
+    } else {
+      this.elements.pagination.style.display = 'none';
+    }
+  },
+
+  /**
+   * Fetch next page
+   */
+  async fetchNextPage() {
+    console.log('LinkedIn Bulk Delete [UI]: Fetching next page...');
+    this.showPageLoading();
+    
+    try {
+      await window.LinkedInBulkDelete?.fetchNextPage?.();
+      this.renderCurrentPage();
+    } catch (error) {
+      console.error('LinkedIn Bulk Delete [UI]: Error fetching next page:', error);
+      this.showNotification('Failed to fetch next page', 'error');
+    } finally {
+      this.hidePageLoading();
+    }
+  },
+
+  /**
+   * Fetch previous page
+   */
+  async fetchPreviousPage() {
+    console.log('LinkedIn Bulk Delete [UI]: Fetching previous page...');
+    this.showPageLoading();
+    
+    try {
+      await window.LinkedInBulkDelete?.fetchPreviousPage?.();
+      this.renderCurrentPage();
+    } catch (error) {
+      console.error('LinkedIn Bulk Delete [UI]: Error fetching previous page:', error);
+      this.showNotification('Failed to fetch previous page', 'error');
+    } finally {
+      this.hidePageLoading();
+    }
+  },
+
+  /**
+   * Show page loading state
+   */
+  showPageLoading() {
+    const loadingItem = document.createElement('div');
+    loadingItem.className = 'lbd-page-loading';
+    loadingItem.innerHTML = `
+      <div class="lbd-spinner"></div>
+      <p>Loading page...</p>
+    `;
+    this.elements.connectionList.innerHTML = '';
+    this.elements.connectionList.appendChild(loadingItem);
+  },
+
+  /**
+   * Hide page loading state
+   */
+  hidePageLoading() {
+    const loadingItem = this.elements.connectionList.querySelector('.lbd-page-loading');
+    if (loadingItem) {
+      loadingItem.remove();
+    }
+  },
+
+  /**
+   * Render connections list (deprecated - use renderCurrentPage instead)
+   * @deprecated
+   */
+  renderConnections() {
+    console.warn('LinkedIn Bulk Delete [UI]: renderConnections() is deprecated, use renderCurrentPage() instead');
+    this.renderCurrentPage();
+  },
+
+  /**
+   * Go to specific page (deprecated - use goToPage in content.js instead)
+   * @deprecated
    */
   goToPage(page) {
-    const totalPages = Math.ceil(this.state.displayedConnections.length / this.state.itemsPerPage);
-    
-    if (page < 0 || page >= totalPages) {
-      return;
-    }
-
-    this.state.currentPage = page;
-    this.renderConnections();
+    console.warn('LinkedIn Bulk Delete [UI]: goToPage() is deprecated, use window.LinkedInBulkDelete.goToPage() instead');
+    window.LinkedInBulkDelete?.goToPage?.(page);
   },
 
   /**
@@ -796,6 +896,20 @@ const UI = {
         <p>Fetching connections...</p>
       </div>
     `;
+  },
+
+  /**
+   * Update fetch progress
+   * @param {number} currentPage - Current page being fetched
+   */
+  updateFetchProgress(currentPage) {
+    const loadingState = this.elements.connectionList.querySelector('.lbd-loading-state');
+    if (loadingState) {
+      const textElement = loadingState.querySelector('p');
+      if (textElement) {
+        textElement.textContent = `Fetching connections... Page ${currentPage}`;
+      }
+    }
   },
 
   /**

@@ -29,7 +29,11 @@
     selectedConnections: new Set(),
     isFetching: false,
     currentPage: 0,
-    hasMoreConnections: true
+    hasMoreConnections: true,
+    totalPages: 0,
+    fetchedPages: new Set(),
+    pageCache: new Map(),
+    connectionsPerPage: 40
   };
 
   /**
@@ -107,14 +111,18 @@
   }
 
   /**
-   * Fetch all connections from API with pagination
+   * Fetch first page of connections
    * @returns {Promise<Array>} Array of connection objects
    */
-  async function fetchAllConnections() {
-    console.log('LinkedIn Bulk Delete: Starting to fetch all connections...');
+  async function fetchFirstPage() {
+    console.log('LinkedIn Bulk Delete: Fetching first page...');
     
+    // Reset state
     state.connections = [];
     state.currentPage = 0;
+    state.totalPages = 0;
+    state.fetchedPages.clear();
+    state.pageCache.clear();
     state.hasMoreConnections = true;
     state.isFetching = true;
 
@@ -122,60 +130,150 @@
     UI.updateConnectionCount(0);
 
     try {
-      while (state.hasMoreConnections) {
-        console.log(`LinkedIn Bulk Delete: Fetching page ${state.currentPage + 1}...`);
-        const result = await LinkedInAPI.fetchConnections({
-          count: 40,
-          start: state.currentPage * 40
-        });
-
-        console.log('LinkedIn Bulk Delete: API result received:', {
-          success: result.success,
-          hasData: !!result.data
-        });
-
-        if (result.success && result.data) {
-          console.log('LinkedIn Bulk Delete: Parsing connections response...');
-          const connections = parseConnectionsResponse(result.data);
-          
-          console.log(`LinkedIn Bulk Delete: Parsed ${connections.length} connections from page ${state.currentPage + 1}`);
-          
-          if (connections.length === 0) {
-            state.hasMoreConnections = false;
-            console.log('LinkedIn Bulk Delete: No more connections to fetch');
-            break;
-          }
-
-          state.connections = state.connections.concat(connections);
-          state.currentPage++;
-          UI.updateConnectionCount(state.connections.length);
-          UI.updateFetchProgress(state.currentPage);
-
-          console.log(`LinkedIn Bulk Delete: Fetched ${connections.length} connections (total: ${state.connections.length})`);
-
-          // Small delay between requests
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } else {
-          state.hasMoreConnections = false;
-          console.warn('LinkedIn Bulk Delete: Failed to fetch connections');
-          break;
-        }
-      }
-
-      console.log(`LinkedIn Bulk Delete: ✓ Successfully fetched ${state.connections.length} total connections`);
-      console.log('LinkedIn Bulk Delete: Calling UI.hideLoading()...');
+      // Fetch first page
+      const connections = await fetchPage(0);
+      
+      console.log(`LinkedIn Bulk Delete: ✓ Successfully fetched first page with ${connections.length} connections`);
       UI.hideLoading();
       state.isFetching = false;
       
-      console.log('LinkedIn Bulk Delete: Fetch complete, returning connections array');
-      return state.connections;
+      return connections;
     } catch (error) {
-      console.error('LinkedIn Bulk Delete: Error fetching connections:', error);
+      console.error('LinkedIn Bulk Delete: Error fetching first page:', error);
       UI.hideLoading();
       state.isFetching = false;
       UI.showNotification('Failed to fetch connections', 'error');
       throw error;
     }
+  }
+
+  /**
+   * Fetch a specific page of connections
+   * @param {number} pageNumber - Page number (0-indexed)
+   * @returns {Promise<Array>} Array of connection objects for this page
+   */
+  async function fetchPage(pageNumber) {
+    console.log(`LinkedIn Bulk Delete: Fetching page ${pageNumber + 1}...`);
+    
+    // Check if page is already cached
+    if (state.pageCache.has(pageNumber)) {
+      console.log(`LinkedIn Bulk Delete: Page ${pageNumber + 1} already cached, returning from cache`);
+      return state.pageCache.get(pageNumber);
+    }
+
+    try {
+      // Fetch page from API
+      const result = await LinkedInAPI.fetchConnections({
+        count: state.connectionsPerPage,
+        start: pageNumber * state.connectionsPerPage
+      });
+
+      console.log('LinkedIn Bulk Delete: API result received:', {
+        success: result.success,
+        hasData: !!result.data
+      });
+
+      if (result.success && result.data) {
+        console.log('LinkedIn Bulk Delete: Parsing connections response...');
+        const connections = parseConnectionsResponse(result.data);
+        
+        console.log(`LinkedIn Bulk Delete: Parsed ${connections.length} connections from page ${pageNumber + 1}`);
+        
+        // Cache the page
+        state.pageCache.set(pageNumber, connections);
+        state.fetchedPages.add(pageNumber);
+        
+        // Update total connections count
+        state.connections = [...state.connections, ...connections];
+        UI.updateConnectionCount(state.connections.length);
+
+        // Check if there are more pages
+        if (connections.length < state.connectionsPerPage) {
+          state.hasMoreConnections = false;
+          state.totalPages = pageNumber + 1;
+          console.log('LinkedIn Bulk Delete: No more connections to fetch');
+        } else {
+          // We don't know total pages yet, but we know there's at least one more
+          state.totalPages = Math.max(state.totalPages, pageNumber + 2);
+        }
+
+        console.log(`LinkedIn Bulk Delete: Fetched ${connections.length} connections (total: ${state.connections.length})`);
+
+        return connections;
+      } else {
+        state.hasMoreConnections = false;
+        console.warn('LinkedIn Bulk Delete: Failed to fetch connections');
+        return [];
+      }
+    } catch (error) {
+      console.error('LinkedIn Bulk Delete: Error fetching page:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Navigate to a specific page
+   * @param {number} pageNumber - Page number (0-indexed)
+   * @returns {Promise<void>}
+   */
+  async function goToPage(pageNumber) {
+    console.log(`LinkedIn Bulk Delete: Navigating to page ${pageNumber + 1}...`);
+    
+    if (pageNumber < 0) {
+      console.warn('LinkedIn Bulk Delete: Invalid page number (negative)');
+      return;
+    }
+
+    // Check if page is already cached
+    if (state.pageCache.has(pageNumber)) {
+      console.log(`LinkedIn Bulk Delete: Page ${pageNumber + 1} already cached`);
+      state.currentPage = pageNumber;
+      UI.renderCurrentPage();
+      return;
+    }
+
+    // If we need to fetch a page beyond what we've seen, fetch it
+    if (pageNumber >= state.totalPages && state.hasMoreConnections) {
+      console.log(`LinkedIn Bulk Delete: Fetching page ${pageNumber + 1} from API...`);
+      try {
+        await fetchPage(pageNumber);
+        state.currentPage = pageNumber;
+        UI.renderCurrentPage();
+      } catch (error) {
+        console.error('LinkedIn Bulk Delete: Error fetching page:', error);
+        UI.showNotification('Failed to fetch page', 'error');
+      }
+    } else if (pageNumber < state.totalPages) {
+      // Page should exist, fetch it
+      try {
+        await fetchPage(pageNumber);
+        state.currentPage = pageNumber;
+        UI.renderCurrentPage();
+      } catch (error) {
+        console.error('LinkedIn Bulk Delete: Error fetching page:', error);
+        UI.showNotification('Failed to fetch page', 'error');
+      }
+    } else {
+      console.warn('LinkedIn Bulk Delete: Page does not exist');
+    }
+  }
+
+  /**
+   * Fetch next page
+   * @returns {Promise<void>}
+   */
+  async function fetchNextPage() {
+    console.log('LinkedIn Bulk Delete: Fetching next page...');
+    await goToPage(state.currentPage + 1);
+  }
+
+  /**
+   * Fetch previous page
+   * @returns {Promise<void>}
+   */
+  async function fetchPreviousPage() {
+    console.log('LinkedIn Bulk Delete: Fetching previous page...');
+    await goToPage(state.currentPage - 1);
   }
 
   /**
@@ -281,12 +379,19 @@
 
   /**
    * Apply search and filter to connections
+   * Note: Filtering is limited with pagination as we cache pages
    */
   function applyFilters() {
     const searchTerm = UI.getSearchTerm().toLowerCase();
     const filterType = UI.getFilterType();
 
-    state.filteredConnections = state.connections.filter(connection => {
+    // Collect all connections from cache
+    let allConnections = [];
+    state.pageCache.forEach((connections) => {
+      allConnections = [...allConnections, ...connections];
+    });
+
+    state.filteredConnections = allConnections.filter(connection => {
       // Apply search filter
       if (searchTerm) {
         const matchesName = connection.fullName.toLowerCase().includes(searchTerm);
@@ -314,7 +419,8 @@
     applySort();
 
     console.log(`LinkedIn Bulk Delete: Filtered to ${state.filteredConnections.length} connections`);
-    UI.renderConnections(state.filteredConnections);
+    console.log('LinkedIn Bulk Delete: Note: Filtering with pagination shows current page from cache');
+    UI.renderCurrentPage();
   }
 
   /**
@@ -448,11 +554,18 @@
    */
   function removeDeletedConnections() {
     const deletedCount = RequestQueue.getStatus().stats.successful;
+    
+    // Remove deleted connections from all cached pages
+    state.pageCache.forEach((connections, pageNumber) => {
+      state.pageCache.set(pageNumber, connections.filter(conn => !state.selectedConnections.has(conn.id)));
+    });
+    
+    // Update total connections
     state.connections = state.connections.filter(conn => !state.selectedConnections.has(conn.id));
     state.selectedConnections.clear();
     
     UI.updateConnectionCount(state.connections.length);
-    applyFilters();
+    UI.renderCurrentPage();
     
     console.log(`LinkedIn Bulk Delete: Removed ${deletedCount} deleted connections from list`);
   }
@@ -525,15 +638,18 @@
       // Select connections that match imported IDs
       let selectedCount = 0;
       importedConnections.forEach(importedConn => {
-        const connection = state.connections.find(c => c.id === importedConn.id);
-        if (connection) {
-          state.selectedConnections.add(connection.id);
-          selectedCount++;
-        }
+        // Search in all cached pages
+        state.pageCache.forEach((connections) => {
+          const connection = connections.find(c => c.id === importedConn.id);
+          if (connection) {
+            state.selectedConnections.add(connection.id);
+            selectedCount++;
+          }
+        });
       });
 
       UI.updateSelectedCount(state.selectedConnections.size);
-      UI.renderConnections(state.filteredConnections);
+      UI.renderCurrentPage();
       
       console.log(`LinkedIn Bulk Delete: Imported ${selectedCount} connections`);
       UI.showNotification(`Selected ${selectedCount} connections from import`, 'success');
@@ -636,7 +752,11 @@
     state,
     init,
     cleanup,
-    fetchAllConnections,
+    fetchFirstPage,
+    fetchPage,
+    fetchNextPage,
+    fetchPreviousPage,
+    goToPage,
     applyFilters,
     startDeletion,
     exportConnections,
